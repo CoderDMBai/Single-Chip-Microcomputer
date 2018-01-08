@@ -1,0 +1,384 @@
+C51 COMPILER V8.06   MAIN                                                                  12/26/2017 15:07:01 PAGE 1   
+
+
+C51 COMPILER V8.06, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\C51.EXE main.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          #include <reg52.h>                      // 包含52单片机系统头文件
+   2          #include <STDIO.H>                      // 包含 printf()
+   3          #include "bst_car.h"            // 包含bst_car.h智障小车头文件
+   4          //#include <AT89X51.H>          // 包含对 TH0、TL0、TR0、ET0、TMOD、SCON、TH1、TL1、TR1、TI 的定义
+   5          #include <intrins.h>            // 包含对 _nop_() 的定义
+   6          
+   7          /**
+   8                  宏定义
+   9          */
+  10          #define uchar unsigned char
+  11          #define uint unsigned int
+  12          
+  13          /**
+  14                  变量声明
+  15          */
+  16          bit flag = 0;                            // 中断溢出标志
+  17          uint time = 0;                           // 记录时间间隔
+  18          float Front_Distance = 0;        // 记录前方障碍物距离
+  19          
+  20          // uchar pwm_val_left  = 0;      //左轮PWM值
+  21          // uchar pwm_val_right = 0;      //右轮PWM值
+  22          
+  23          // //速度调节变量 0-20,0最小,20最大
+  24          // unsigned char push_val_left = 5;  //左电机占空比 push_val_left/20 
+  25          // unsigned char push_val_right = 5; //右电机占空比 push_val_right/20 
+  26          
+  27          // bit Right_PWM_ON = 1;              //右电机PWM开关
+  28          // bit Left_PWM_ON = 1;           //左电机PWM开关
+  29          
+  30          /* - - - - - - - - - - - - - - - - - - - -↓      公共方法      ↓- - - -   - - - - - - - - - - - - - */
+  31          /**
+  32                  串口初始化函数
+  33          */
+  34          void Initial_Com(void)
+  35          {
+  36   1              /// 超声波单独工作
+  37   1              // TMOD = 0x21;              // 定时器T1，在方式1中断产生波特率，设T0为方式1，GATE=1；
+  38   1          // TH1 = 0xFD;                                // 波特率设置为9600
+  39   1          // TL1 = 0xFD;
+  40   1              // TR1 = 1;                  // 开启定时器
+  41   1              // TH0 = 0;                               // 1ms定时
+  42   1              // TL0 = 0;
+  43   1          // TR0 = 1;
+  44   1              // ET0 = 1;                               // 允许T0中断
+  45   1          // TI = 1;
+  46   1          // EA = 1;                   // 开启总中断
+  47   1      
+  48   1          /// 超声波 + 红外线
+  49   1          TMOD = 0x21;              // 定时器T1，在方式1中断产生波特率，设T0为方式1，GATE=1；
+  50   1          TH1 = 0xFD;                           // 波特率设置为9600
+  51   1          TL1 = 0xFD;
+  52   1              TR1 = 1;                  // 开启定时器
+  53   1              TH0 = 0;                                  // 1ms定时
+  54   1              TL0 = 0;
+  55   1          TR0 = 1;
+C51 COMPILER V8.06   MAIN                                                                  12/26/2017 15:07:01 PAGE 2   
+
+  56   1              ET0 = 1;                                  // 允许T0中断
+  57   1          TI = 1;
+  58   1          EA = 1;                   // 开启总中断
+  59   1      
+  60   1          /// 超声波 + 红外线 + 电机调速
+  61   1      
+  62   1              //----------------------------------------------------------------------
+  63   1              
+  64   1          // 红外线 + 调速     timer0 是 pwm
+  65   1          // P2 = 0XC0;    //关电机   
+  66   1              // TMOD = 0X01;  //定时器工作方式1
+  67   1          // TH0 = 0XFC;   //1ms定时，装入初值
+  68   1          // TL0 = 0X66;
+  69   1          // TR0 = 1;         //启动T0工作
+  70   1          // ET0 = 1;         //允许T0中断
+  71   1          // EA = 1;      //开总中断 
+  72   1          
+  73   1          // 超声波 + 调速     timer0是 pwm     timer1是 超声波
+  74   1              
+  75   1          
+  76   1      
+  77   1          /// 超声波单独工作
+  78   1              // TMOD = 0x21;              // 定时器T1，在方式1中断产生波特率，设T0为方式1，GATE=1；
+  79   1          // TH1 = 0xFD;                                // 波特率设置为9600
+  80   1          // TL1 = 0xFD;
+  81   1              // TR1 = 1;                  // 开启定时器
+  82   1              // TH0 = 0;                               // 1ms定时
+  83   1              // TL0 = 0;
+  84   1          // TR0 = 1;
+  85   1              // ET0 = 1;                               // 允许T0中断
+  86   1          // TI = 1;
+  87   1          // EA = 1;                   //开启总中断
+  88   1      }
+  89          
+  90          /**
+  91                  延时函数
+  92          */
+  93          void delay(uint xms)                            
+  94          {
+  95   1          uint i,j;
+  96   1              for(i=xms;i>0;i--)                    // i=xms即延时约xms毫秒
+  97   1          for(j=112;j>0;j--);
+  98   1      }
+  99          /* - - - - - - - - - - - - - - - - - - - -↑      公共方法      ↑- - - -   - - - - - - - - - - - - - */
+ 100          
+ 101          /* - - - - - - - - - - - - - - - - - - - -↓ 智能小车的基本动作 ↓- - - -   - - - - - - - - - - - - - */
+ 102          /**
+ 103                  前进
+ 104          */
+ 105          void run(void)
+ 106          {
+ 107   1              Left_moto_go;
+ 108   1              // push_val_left = 5;             //更新指定管脚的PWM值，更改可实现控速（0-20）
+ 109   1              Right_moto_go; 
+ 110   1              // push_val_right = 5;    //更新指定管脚的PWM值，更改可实现控速（0-20）
+ 111   1      }
+ 112          
+ 113          /**
+ 114             左转(左轮不动，右轮前进)
+ 115          */
+ 116          void left(void)
+ 117          {
+C51 COMPILER V8.06   MAIN                                                                  12/26/2017 15:07:01 PAGE 3   
+
+ 118   1              Left_moto_Stop;
+ 119   1              Right_moto_go;
+ 120   1              // push_val_right = 5;    //更新指定管脚的PWM值，更改可实现控速（0-20）
+ 121   1      }
+ 122          
+ 123          /**
+ 124             左转(左轮后退，右轮前进)
+ 125          */
+ 126          void spin_left(uint time)
+ 127          {
+ 128   1              Left_moto_back;
+ 129   1              // push_val_left = 5;
+ 130   1              Right_moto_go;
+ 131   1              // push_val_right = 5;
+ 132   1              delay(time * 100);
+ 133   1      }
+ 134          
+ 135          
+ 136          /**
+ 137             右转(右轮不动，左轮前进)
+ 138          */
+ 139          void right(void)
+ 140          {
+ 141   1              Left_moto_go;
+ 142   1              // push_val_left = 5;             //更新指定管脚的PWM值，更改可实现控速（0-20）
+ 143   1              Right_moto_back;
+ 144   1      }
+ 145          
+ 146          /**
+ 147             右转(右轮后退，左轮前进)
+ 148          */
+ 149          void spin_right(uint time)
+ 150          {
+ 151   1              Right_moto_back;
+ 152   1              // push_val_left = 5;
+ 153   1              Left_moto_go;
+ 154   1              // push_val_right = 5;
+ 155   1              delay(time * 100); 
+ 156   1      }
+ 157          
+ 158          /**
+ 159             后退
+ 160          */
+ 161          void back(void)
+ 162          {
+ 163   1              Left_moto_back;
+ 164   1              Right_moto_back;
+ 165   1      }
+ 166          
+ 167          /**
+ 168             刹车，停车
+ 169          */
+ 170          void brake(void)
+ 171          {
+ 172   1              Left_moto_Stop;
+ 173   1              Right_moto_Stop;
+ 174   1      }
+ 175          
+ 176          /**
+ 177                  左电机调速,调节 push_val_left 的值改变电机转速,占空比
+ 178          */
+ 179          // void pwm_out_left_motor(void)
+C51 COMPILER V8.06   MAIN                                                                  12/26/2017 15:07:01 PAGE 4   
+
+ 180          // {  
+ 181          //      if(Left_PWM_ON)
+ 182          //      {
+ 183          //           if(pwm_val_left <= push_val_left)
+ 184          //            {
+ 185          //                Left_motor_pwm = 1; 
+ 186          //            }
+ 187          //            else 
+ 188          //            {
+ 189          //                Left_motor_pwm = 0;
+ 190          //           }
+ 191          //           if(pwm_val_left >= 20) // 这里的20代表的是pwm为20ms即50hz
+ 192          //            pwm_val_left = 0;
+ 193          //      }
+ 194          //      else    
+ 195          //      {
+ 196          //           Left_motor_pwm = 0; // 若未开启PWM则PWMA=0 左电机停止
+ 197          //      }
+ 198          // }
+ 199          /**
+ 200                  右电机调速      ,调节 pwm_val_right 的值改变电机转速,占空比
+ 201          */
+ 202          // void pwm_out_right_motor(void)
+ 203          // { 
+ 204          //     if(Right_PWM_ON)
+ 205          //     { 
+ 206          //         if(pwm_val_right <= push_val_right)  
+ 207          //          {
+ 208          //              Right_motor_pwm = 1;                                                    
+ 209          //         }
+ 210          //          else 
+ 211          //          {
+ 212          //              Right_motor_pwm = 0;
+ 213          //         }
+ 214          //          if(pwm_val_right >= 20) // 这里的20代表的是pwm为20ms即50hz
+ 215          //          pwm_val_right = 0;
+ 216          //     }
+ 217          //      else    
+ 218          //     {
+ 219          //         Right_motor_pwm = 0;  // 若未开启PWM则PWMB=0右电机停止
+ 220          //      }
+ 221          // }
+ 222          
+ 223          /**
+ 224                  TIMER0中断服务子函数产生PWM信号，用于电机的控速
+ 225          */
+ 226          // void timer0()interrupt 1
+ 227          // {
+ 228          //      TH0=0XFC;                         // 1Ms定时
+ 229          //       TL0=0X66;
+ 230          //       pwm_val_left ++;
+ 231          //       pwm_val_right ++;
+ 232          //       pwm_out_left_motor();
+ 233          //       pwm_out_right_motor();
+ 234          // }
+ 235          /* - - - - - - - - - - - - - - - - - - - -↑ 智能小车的基本动作 ↑- - - - - - - - - - - - - - - - - - */
+ 236          
+ 237          /* - - - - - - - - - - - - - - - - - - - -↓   超声波功能实现   ↓- - - - - - - - - - - - - - - - - - */
+ 238          /**
+ 239                  计算障碍物距离CM
+ 240          */
+ 241          void Distance(void)
+C51 COMPILER V8.06   MAIN                                                                  12/26/2017 15:07:01 PAGE 5   
+
+ 242          {
+ 243   1          time = TH0 * 256 + TL0;
+ 244   1          TH0 = 0;
+ 245   1          TL0 = 0;
+ 246   1          Front_Distance = (time * 1.87) / 100;       // 算出来是CM
+ 247   1          if((Front_Distance >= 7000) || flag == 1)   // 超出测量
+ 248   1          {
+ 249   2              flag = 0;
+ 250   2              printf("-----\n"); 
+ 251   2          }    
+ 252   1          printf("S=%d\n",(uint)Front_Distance); 
+ 253   1      }
+ 254          
+ 255          /**
+ 256                  TIMER1中断用来计数器溢出,超过测距范围
+ 257          */
+ 258          void zd0() interrupt 1
+ 259          {
+ 260   1          flag = 1;
+ 261   1      }
+ 262          
+ 263          /**
+ 264                  T1中断用来扫描数码管和计800MS启动模块
+ 265          */
+ 266          void StartModule(void)
+ 267          {
+ 268   1          TX = 1;                     // 800MS  启动一次模块
+ 269   1          _nop_(); 
+ 270   1          _nop_(); 
+ 271   1          _nop_(); 
+ 272   1          _nop_(); 
+ 273   1          _nop_(); 
+ 274   1          _nop_(); 
+ 275   1          _nop_(); 
+ 276   1          _nop_(); 
+ 277   1          _nop_(); 
+ 278   1          _nop_(); 
+ 279   1          _nop_(); 
+ 280   1          _nop_(); 
+ 281   1          _nop_(); 
+ 282   1          _nop_(); 
+ 283   1          _nop_(); 
+ 284   1          _nop_(); 
+ 285   1          _nop_();
+ 286   1          _nop_(); 
+ 287   1          _nop_(); 
+ 288   1          _nop_(); 
+ 289   1          _nop_();
+ 290   1          TX = 0;
+ 291   1      }
+ 292          
+ 293          /* - - - - - - - - - - - - - - - - - - - -↑   超声波功能实现   ↑- - - - - - - - - - - - - - - - - - */
+ 294          /**
+ 295                  主函数
+ 296          */
+ 297          void main(void)
+ 298          {
+ 299   1          Initial_Com();
+ 300   1              
+ 301   1              while(1)                                  // 无限循环
+ 302   1              {
+ 303   2                      StartModule();
+C51 COMPILER V8.06   MAIN                                                                  12/26/2017 15:07:01 PAGE 6   
+
+ 304   2              while(!RX);           // 当RX为零时等待
+ 305   2              TR0 = 1;              // 开启计数
+ 306   2              while(RX);            // 当RX为1计数并等待
+ 307   2              TR0 = 0;              // 关闭计数
+ 308   2              Distance();           // 计算
+ 309   2                      delay(10);
+ 310   2                      
+ 311   2                      // 前方15厘米处有障碍物
+ 312   2                      if(Front_Distance < 15)
+ 313   2                      {
+ 314   3                              spin_right(3);
+ 315   3                      }
+ 316   2                      // 左前或左边有障碍物
+ 317   2              else if(IrEludeLeftFront == 0 || IrEludeLeft == 0)
+ 318   2              {
+ 319   3                spin_right(3);
+ 320   3              }
+ 321   2              // 右前或右边有障碍物
+ 322   2              else if(IrEludeRightFront == 0 || IrEludeRight == 0)
+ 323   2              {
+ 324   3                spin_left(3);
+ 325   3              }
+ 326   2              // 左前和左都有障碍物
+ 327   2              else if(IrEludeLeftFront == 0 && IrEludeLeft == 0)
+ 328   2              {
+ 329   3                spin_right(3);
+ 330   3              }
+ 331   2              // 右前和右边都有障碍物
+ 332   2              else if(IrEludeRightFront == 0 && IrEludeRight == 0)
+ 333   2              {
+ 334   3                spin_left(3);
+ 335   3              }
+ 336   2              // 左前和右前都有障碍物
+ 337   2              else if(IrEludeLeftFront == 0 && IrEludeRightFront == 0)
+ 338   2              {
+ 339   3                spin_right(12);
+ 340   3              }
+ 341   2              // 前面半周都有障碍物，原地旋转一周
+ 342   2              else if(IrEludeLeft == 0 && IrEludeLeftFront == 0 && IrEludeRight == 0 && IrEludeRightFront == 0)
+ 343   2              {
+ 344   3                spin_right(12);
+ 345   3              }
+ 346   2              else
+ 347   2              {
+ 348   3                run();
+ 349   3              }
+ 350   2              }
+ 351   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    422    ----
+   CONSTANT SIZE    =     13    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      6    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,12 @@
+C51 COMPILER V8.06   ZHIZHANGCAR                                                           12/18/2017 10:40:07 PAGE 1   
+
+
+C51 COMPILER V8.06, COMPILATION OF MODULE ZHIZHANGCAR
+OBJECT MODULE PLACED IN ZhiZhangCar.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\C51.EXE ZhiZhangCar.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+*** ERROR C318 OF ZhiZhangCar.c: can't open file 'ZhiZhangCar.c'
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  1 ERROR(S)
